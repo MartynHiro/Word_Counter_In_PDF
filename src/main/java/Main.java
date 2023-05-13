@@ -14,6 +14,7 @@ public class Main {
     public static final String DIRECTORY_WITH_PDF = "pdfs";
     public static final int PORT = 8989;
     public static final String HOST = "127.0.0.1";
+
     public static void main(String[] args) throws Exception {
 
         BooleanSearchEngine engine = new BooleanSearchEngine(new File(DIRECTORY_WITH_PDF));
@@ -38,7 +39,6 @@ public class Main {
                     searchResult.forEach(page -> jsonAnswer.append(gson.toJson(page)));
 
                     writer.println(jsonAnswer);
-
                 }
             }
         } catch (IOException e) {

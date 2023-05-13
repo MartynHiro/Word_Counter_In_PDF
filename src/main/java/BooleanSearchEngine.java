@@ -3,17 +3,25 @@ import com.itextpdf.kernel.pdf.PdfPage;
 import com.itextpdf.kernel.pdf.PdfReader;
 import com.itextpdf.kernel.pdf.canvas.parser.PdfTextExtractor;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
 
 public class BooleanSearchEngine implements SearchEngine {
+    public static final String STOP_FILE = "stop-ru.txt";
+
     //в этой мапе будем хранить результаты сканирования всех наших файлов, в качестве ключа - слово для поиска
     private final Map<String, List<PageEntry>> cache;
+
+    //список для стоп слов из txt
+    private final List<String> stopWords;
 
     public BooleanSearchEngine(File pdfsDir) throws IOException {
 
         cache = new HashMap<>();
+        stopWords = saveWordsFromStopFile();
 
         if (pdfsDir.isDirectory()) {
             for (File pdf : Objects.requireNonNull(pdfsDir.listFiles())) {
@@ -48,6 +56,28 @@ public class BooleanSearchEngine implements SearchEngine {
         }
     }
 
+    private List<String> saveWordsFromStopFile() {
+
+        List<String> stopWords = new ArrayList<>();
+
+        File stopFile = new File(STOP_FILE);
+
+        if (stopFile.isFile()) {
+            try (BufferedReader reader = new BufferedReader(new FileReader(stopFile))) {
+
+                //считываем все слова из файла
+                String buff;
+                while ((buff = reader.readLine()) != null) {
+
+                    stopWords.add(buff);
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return stopWords;
+    }
+
     private void countingWordsOnOnePage(String[] wordsFromPage, Map<String, Integer> frequencyOnPage) {
         for (var word : wordsFromPage) { // перебираем слова
             if (word.isEmpty()) {
@@ -79,10 +109,40 @@ public class BooleanSearchEngine implements SearchEngine {
     }
 
     @Override
-    public List<PageEntry> search(String word) {
-        //поиск по слову в кеше
-        List<PageEntry> list = cache.getOrDefault(word, null);
-        list.sort(Comparator.reverseOrder());
-        return list;
+    public List<PageEntry> search(String input) {
+        //список для вывода итога
+        List<PageEntry> resultList = new ArrayList<>();
+
+        String[] words = input.split(" ");
+
+        //проверяем каждое слово из ввода
+        for (String word : words) {
+            //учитываем слово, только если его нет в списке стоп слов
+
+            if (cache.get(word) != null && !stopWords.contains(word)) {
+                List<PageEntry> listFromCache = cache.get(word);
+
+                //если еще нет записей, то просто все сохраняем
+                if (resultList.isEmpty()) {
+                    resultList.addAll(listFromCache);
+
+                } else {
+                    for (var cache : listFromCache) {
+                        if (resultList.contains(cache)) {
+
+                            var pageForChange = resultList.get(resultList.indexOf(cache));
+                            pageForChange.setCount(pageForChange.getCount() + cache.getCount());
+
+                            resultList.set(resultList.indexOf(cache), pageForChange);
+
+                        } else {
+                            resultList.add(cache);
+                        }
+                    }
+                }
+            }
+        }
+        resultList.sort(Comparator.reverseOrder());
+        return resultList;
     }
 }
